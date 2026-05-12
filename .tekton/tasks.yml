@@ -4,46 +4,33 @@ kind: Task
 metadata:
   name: cleanup
 spec:
-  description: >-
-    Cleanup task: deletes all resources from the current namespace
-    so the pipeline starts from a clean state.
+  workspaces:
+    - name: source
+      description: The workspace to clean up
   steps:
     - name: remove
-      image: alpine/k8s:1.27.5
+      image: alpine:3
       command: ["/bin/sh", "-c"]
       args:
         - |
-          echo "=== Cleaning up namespace resources ==="
-          kubectl delete deployment,service,route --all --ignore-not-found=true
+          echo "=== Cleaning workspace ==="
+          rm -rf /workspace/source/*
+          rm -rf /workspace/source/.[!.]*
           echo "=== Cleanup complete ==="
-
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
   name: jest-test
 spec:
-  description: >-
-    Jest test task: clones the repository and runs Jest unit tests
-    to validate the Node.js application.
+  workspaces:
+    - name: source
+      description: The workspace containing the source code
   params:
     - name: repo-url
       type: string
-      description: The URL of the GitHub repository to clone
-    - name: branch
-      type: string
-      description: The branch to checkout
-      default: "main"
+      default: ""
   steps:
-    - name: clone
-      image: alpine/git:latest
-      command: ["/bin/sh", "-c"]
-      args:
-        - |
-          echo "=== Cloning repository ==="
-          git clone --branch $(params.branch) $(params.repo-url) /workspace/source
-          echo "=== Clone complete ==="
-
     - name: run-jest-tests
       image: node:18-alpine
       workingDir: /workspace/source
@@ -51,7 +38,9 @@ spec:
       args:
         - |
           echo "=== Installing dependencies ==="
-          npm ci
+          npm install
+          echo "=== Running ESLint ==="
+          npm run lint
           echo "=== Running Jest unit tests ==="
           npm test
           echo "=== Tests complete ==="
